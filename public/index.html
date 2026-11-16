@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dental Assistant</title>
+<style>
+  :root { --teal:#0e9aa7; --dark:#0b5560; --bg:#f4f8f9; --card:#fff; --text:#1d2433; --muted:#667; --warn:#fff3cd; }
+  * { box-sizing:border-box }
+  body { margin:0; font-family:"Segoe UI",Arial,sans-serif; background:var(--bg); color:var(--text) }
+  header { background:var(--dark); color:#fff; padding:14px 24px; display:flex; align-items:center; gap:16px }
+  header h1 { margin:0; font-size:20px } header .sub { opacity:.75; font-size:13px }
+  header select { margin-left:auto; padding:6px; border-radius:6px }
+  main { display:grid; grid-template-columns: 420px 1fr; gap:18px; padding:18px; height:calc(100vh - 60px) }
+  .col { display:flex; flex-direction:column; gap:14px; overflow:auto }
+  .card { background:var(--card); border-radius:10px; padding:14px 16px; box-shadow:0 1px 3px rgba(0,0,0,.08) }
+  .card h2 { margin:0 0 10px; font-size:15px; color:var(--dark); display:flex; align-items:center; gap:8px }
+  .step { background:var(--teal); color:#fff; border-radius:50%; width:22px; height:22px; display:inline-grid; place-items:center; font-size:12px }
+  textarea { width:100%; min-height:150px; border:1px solid #cdd8db; border-radius:8px; padding:10px; font:inherit; font-size:13px; resize:vertical }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px }
+  button { border:none; border-radius:8px; padding:9px 14px; font:inherit; font-weight:600; cursor:pointer; background:var(--teal); color:#fff }
+  button.ghost { background:#e6f2f3; color:var(--dark) } button.ok { background:#1b8a4b }
+  button:disabled { opacity:.5; cursor:not-allowed }
+  button.mic.rec { background:#d33; animation:pulse 1s infinite }
+  @keyframes pulse { 50% { opacity:.6 } }
+  .samples button { padding:5px 10px; font-size:12px }
+  .q { border-left:4px solid #f0c94d; background:var(--warn); padding:8px 10px; border-radius:6px; margin-bottom:8px; font-size:13px }
+  .q .opts { margin-top:6px; display:flex; gap:6px; flex-wrap:wrap }
+  .q .opts button { background:#fff; color:var(--dark); border:1px solid #e0c060; padding:4px 9px; font-size:12px; font-weight:500 }
+  .versions a { display:block; padding:6px 8px; border-radius:6px; text-decoration:none; color:var(--dark); font-size:13px }
+  .versions a.active, .versions a:hover { background:#e6f2f3 }
+  iframe { flex:1; width:100%; border:none; border-radius:10px; background:#fff; min-height:500px }
+  .status { font-size:13px; color:var(--muted); min-height:18px }
+  .status.err { color:#c22 }
+  .spinner { display:inline-block; width:12px; height:12px; border:2px solid #ccc; border-top-color:var(--teal); border-radius:50%; animation:spin 1s linear infinite; vertical-align:middle; margin-right:6px }
+  @keyframes spin { to { transform:rotate(360deg) } }
+  .empty { display:grid; place-items:center; flex:1; color:var(--muted); background:#fff; border-radius:10px }
+  .hidden { display:none !important }
+  @media (max-width: 900px) { main { grid-template-columns:1fr; height:auto } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🦷 Dental Assistant</h1><span class="sub">Dictate → plan → PDF → questions → updated PDF</span>
+  <select id="lang" title="Voice & document language">
+    <option value="en">English (en-US)</option>
+    <option value="fr">Français (fr-FR)</option>
+  </select>
+</header>
+
+<main>
+  <div class="col">
+    <div class="card">
+      <h2><span class="step">1</span> Dictation</h2>
+      <textarea id="dictation" placeholder="Click 🎤 and dictate the treatment… (you can also type or correct the text)"></textarea>
+      <div class="row">
+        <button class="mic" id="micDictate">🎤 Dictate</button>
+        <button id="btnPlan">Build plan → PDF</button>
+        <button class="ghost" id="btnClear">Clear</button>
+      </div>
+      <div class="row samples" id="samples"><span class="status">Dentist sample notes:</span></div>
+    </div>
+
+    <div class="card hidden" id="qCard">
+      <h2><span class="step">4</span> Questions from the assistant</h2>
+      <div id="questions"></div>
+      <textarea id="answers" style="min-height:90px" placeholder="Answer by voice (🎤) or click an option…"></textarea>
+      <div class="row">
+        <button class="mic" id="micAnswer">🎤 Answer</button>
+        <button id="btnAnswer">Update plan → new PDF</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="validateCard">
+      <h2><span class="step">✓</span> Validation</h2>
+      <p class="status" id="validateText"></p>
+      <div class="row">
+        <button class="ok" id="btnFinal">Approve → final PDF</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="vCard">
+      <h2>PDF versions</h2>
+      <div class="versions" id="versions"></div>
+    </div>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="col">
+    <div class="empty" id="empty">The treatment plan PDF will appear here.</div>
+    <iframe id="viewer" class="hidden"></iframe>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let session = null;
+
+// ---------- Voice (Web Speech API: works in Chrome / Edge) ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function setupMic(button, textarea) {
+  if (!SR) { button.disabled = true; button.title = 'Speech recognition needs Chrome or Edge'; return; }
+  let rec = null, base = '';
+  button.onclick = () => {
+    if (rec) { rec.stop(); return; }
+    rec = new SR();
+    rec.lang = $('lang').value === 'fr' ? 'fr-FR' : 'en-US';
+    rec.continuous = true; rec.interimResults = true;
+    base = textarea.value ? textarea.value.trimEnd() + ' ' : '';
+    let finalText = '';
+    rec.onresult = e => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) finalText += r[0].transcript + ' '; else interim += r[0].transcript;
+      }
+      textarea.value = base + finalText + interim;
+    };
+    rec.onerror = e => status(e.error === 'network' || e.error === 'not-allowed' || e.error === 'service-not-allowed'
+      ? 'Voice recognition unavailable here (' + e.error + '). Open the app in Chrome or Edge and allow the microphone.'
+      : 'Microphone: ' + e.error, true);
+    rec.onend = () => { rec = null; button.classList.remove('rec'); button.textContent = button.dataset.label; };
+    rec.start();
+    button.dataset.label = button.dataset.label || button.textContent;
+    button.classList.add('rec'); button.textContent = '⏹ Stop';
+  };
+}
+setupMic($('micDictate'), $('dictation'));
+setupMic($('micAnswer'), $('answers'));
+
+// ---------- Helpers ----------
+function status(msg, err = false, busy = false) {
+  $('status').className = 'status' + (err ? ' err' : '');
+  $('status').innerHTML = (busy ? '<span class="spinner"></span>' : '') + msg;
+}
+function setBusy(b) { document.querySelectorAll('button').forEach(x => { if (!x.classList.contains('mic')) x.disabled = b; }); }
+async function api(url, body, method = 'POST') {
+  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: method === 'POST' ? JSON.stringify(body || {}) : undefined });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function showPdf(url) {
+  $('empty').classList.add('hidden');
+  $('viewer').classList.remove('hidden');
+  $('viewer').src = url + '?t=' + Date.now();
+  document.querySelectorAll('.versions a').forEach(a => a.classList.toggle('active', a.dataset.url === url));
+}
+
+function render() {
+  const p = session.plan;
+  const last = session.versions[session.versions.length - 1];
+  $('vCard').classList.remove('hidden');
+  $('versions').innerHTML = session.versions.slice().reverse().map(v =>
+    `<a href="#" data-url="${v.url}">📄 v${v.version}${v.final ? ' — FINAL' : ''} · ${v.total.toFixed(2)} € · ${v.questions} open question(s)</a>`).join('');
+  $('versions').querySelectorAll('a').forEach(a => a.onclick = e => { e.preventDefault(); showPdf(a.dataset.url); });
+  showPdf(last.url);
+
+  const hasQ = p.questions.length > 0 && !session.final;
+  $('qCard').classList.toggle('hidden', session.final);
+  $('questions').innerHTML = hasQ ? p.questions.map((q, i) => `
+    <div class="q"><b>${i + 1}. ${esc(q.question)}</b>
+      <div class="opts">${(q.options || []).map(o => `<button data-q="${i + 1}" data-o="${esc(o)}">${esc(o)}</button>`).join('')}</div></div>`).join('')
+    : '<p class="status">No open question. You can still dictate corrections below.</p>';
+  $('questions').querySelectorAll('.opts button').forEach(b => b.onclick = () => {
+    const a = $('answers'); a.value = (a.value ? a.value.trimEnd() + '\n' : '') + `Q${b.dataset.q}: ${b.dataset.o}`;
+  });
+  $('answers').value = '';
+
+  $('validateCard').classList.toggle('hidden', session.final);
+  $('validateText').textContent = hasQ ? 'Questions are still open — you can approve anyway once you agree with the plan.' : 'All clear. Approve to generate the final PDF for the patient.';
+  if (session.final) status('✅ Final PDF ready to send to the patient.');
+}
+
+// ---------- Actions ----------
+$('btnPlan').onclick = async () => {
+  const dictation = $('dictation').value.trim();
+  if (!dictation) return status('Dictate or type the treatment first.', true);
+  setBusy(true); status('Claude is building the treatment plan… (~20-60 s)', false, true);
+  try { session = await api('/api/plan', { dictation, language: $('lang').value }); render(); status('PDF v1 generated. Answer the questions to refine it.'); }
+  catch (e) { status(e.message, true); } finally { setBusy(false); }
+};
+
+$('btnAnswer').onclick = async () => {
+  const answers = $('answers').value.trim();
+  if (!answers) return status('Answer by voice or click an option first.', true);
+  setBusy(true); status('Claude is updating the plan…', false, true);
+  try { session = await api(`/api/session/${session.id}/answer`, { answers }); render(); status(`PDF v${session.versions.length} generated.`); }
+  catch (e) { status(e.message, true); } finally { setBusy(false); }
+};
+
+$('btnFinal').onclick = async () => {
+  setBusy(true); status('Generating final PDF…', false, true);
+  try { session = await api(`/api/session/${session.id}/finalize`); render(); }
+  catch (e) { status(e.message, true); } finally { setBusy(false); }
+};
+
+$('btnClear').onclick = () => {
+  session = null; $('dictation').value = '';
+  ['qCard', 'validateCard', 'vCard', 'viewer'].forEach(id => $(id).classList.add('hidden'));
+  $('empty').classList.remove('hidden'); status('');
+};
+
+// Dentist's sample notes (from data/dentist_notes_EN.txt)
+function loadSamples() {
+  api('/api/sample-notes', null, 'GET').then(list => {
+    $('samples').querySelectorAll('button').forEach(b => b.remove());
+    list.forEach(n => {
+      const b = document.createElement('button'); b.className = 'ghost'; b.textContent = n.label;
+      b.onclick = () => { $('dictation').value = n.text; $('lang').value = 'en'; };
+      $('samples').appendChild(b);
+    });
+  }).catch(e => status(e.message, true));
+}
+loadSamples();
+</script>
+</body>
+</html>
