@@ -1,0 +1,13 @@
+# Render Blueprint: free web service built from this GitHub repo.
+services:
+  - type: web
+    name: dental-assistant
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: GEMINI_API_KEY
+        sync: false   # asked at deploy time, never stored in the repo

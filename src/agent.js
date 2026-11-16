@@ -3,6 +3,11 @@
 const fs = require('fs');
 const path = require('path');
 const { askClaudeJSON } = require('./claude');
+const { askGeminiJSON } = require('./gemini');
+
+// Online (GEMINI_API_KEY set) -> Gemini free tier. Locally without key -> Claude via Claude Code (subscription).
+const askAI = opts => (process.env.GEMINI_API_KEY ? askGeminiJSON(opts) : askClaudeJSON(opts));
+const AI_NAME = () => (process.env.GEMINI_API_KEY ? 'Gemini' : 'Claude');
 
 const PRICE_LIST = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'price_list.json'), 'utf8'))
   .map((p, i) => ({ id: 'P' + (i + 1), ...p }));
@@ -124,13 +129,13 @@ function priceThePlan(plan) {
 }
 
 async function createPlan({ dictation, language }) {
-  const raw = await askClaudeJSON({ systemPrompt: SYSTEM_PROMPT, userPrompt: buildUserPrompt({ language, dictation }), schema: SCHEMA });
+  const raw = await askAI({ systemPrompt: SYSTEM_PROMPT, userPrompt: buildUserPrompt({ language, dictation }), schema: SCHEMA });
   return priceThePlan(raw);
 }
 
 async function updatePlan({ dictation, language, previousPlan, answers }) {
-  const raw = await askClaudeJSON({ systemPrompt: SYSTEM_PROMPT, userPrompt: buildUserPrompt({ language, dictation, previousPlan, answers }), schema: SCHEMA });
+  const raw = await askAI({ systemPrompt: SYSTEM_PROMPT, userPrompt: buildUserPrompt({ language, dictation, previousPlan, answers }), schema: SCHEMA });
   return priceThePlan(raw);
 }
 
-module.exports = { createPlan, updatePlan, PRICE_LIST };
+module.exports = { createPlan, updatePlan, PRICE_LIST, AI_NAME };

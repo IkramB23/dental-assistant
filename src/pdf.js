@@ -1,6 +1,6 @@
-// HTML template -> PDF with puppeteer-core, using the Edge/Chrome already installed on the machine.
+// HTML template -> PDF with Puppeteer.
 const fs = require('fs');
-const puppeteer = require('puppeteer-core');
+const puppeteer = require('puppeteer');
 
 const BROWSER_CANDIDATES = [
   process.env.BROWSER_PATH,
@@ -15,9 +15,13 @@ const BROWSER_CANDIDATES = [
 let browserPromise;
 function getBrowser() {
   if (!browserPromise) {
+    // Locally: installed Edge/Chrome. On the server: the Chrome downloaded by puppeteer at install time.
     const executablePath = BROWSER_CANDIDATES.find(p => fs.existsSync(p));
-    if (!executablePath) throw new Error('No Chrome/Edge found. Set BROWSER_PATH.');
-    browserPromise = puppeteer.launch({ executablePath, headless: true });
+    browserPromise = puppeteer.launch({
+      executablePath, headless: true,
+      args: process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] : [],
+    });
+    browserPromise.catch(() => { browserPromise = null; });
   }
   return browserPromise;
 }

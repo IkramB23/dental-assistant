@@ -1,8 +1,9 @@
+try { process.loadEnvFile(); } catch {} // optional .env (GEMINI_API_KEY=...), never committed
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { createPlan, updatePlan } = require('./src/agent');
+const { createPlan, updatePlan, AI_NAME } = require('./src/agent');
 const { generatePdf } = require('./src/pdf');
 
 const app = express();
@@ -80,4 +81,6 @@ app.get('/api/sample-notes', (req, res) => {
   res.json(blocks.map(b => ({ label: b.match(/^PATIENT \d+/)[0], text: b.replace(/^PATIENT[^\n]*\n-+\n/, '').trim() })));
 });
 
-app.listen(PORT, () => console.log(`Dental assistant running on http://localhost:${PORT}`));
+app.get('/api/info', (req, res) => res.json({ ai: AI_NAME() }));
+
+app.listen(PORT, () => console.log(`Dental assistant running on http://localhost:${PORT} (AI: ${AI_NAME()})`));

@@ -179,7 +179,7 @@ function render() {
 $('btnPlan').onclick = async () => {
   const dictation = $('dictation').value.trim();
   if (!dictation) return status('Dictate or type the treatment first.', true);
-  setBusy(true); status('Claude is building the treatment plan… (~20-60 s)', false, true);
+  setBusy(true); status('The AI is building the treatment plan… (~20-60 s)', false, true);
   try { session = await api('/api/plan', { dictation, language: $('lang').value }); render(); status('PDF v1 generated. Answer the questions to refine it.'); }
   catch (e) { status(e.message, true); } finally { setBusy(false); }
 };
@@ -187,7 +187,7 @@ $('btnPlan').onclick = async () => {
 $('btnAnswer').onclick = async () => {
   const answers = $('answers').value.trim();
   if (!answers) return status('Answer by voice or click an option first.', true);
-  setBusy(true); status('Claude is updating the plan…', false, true);
+  setBusy(true); status('The AI is updating the plan…', false, true);
   try { session = await api(`/api/session/${session.id}/answer`, { answers }); render(); status(`PDF v${session.versions.length} generated.`); }
   catch (e) { status(e.message, true); } finally { setBusy(false); }
 };
