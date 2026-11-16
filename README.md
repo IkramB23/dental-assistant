@@ -18,7 +18,7 @@ Requirements:
 - **Claude Code**, logged in with a Claude account. The app uses the Claude subscription through the CLI, so you don't need an API key. Install it with `npm install -g @anthropic-ai/claude-code`, then run `claude` once to log in.
 
 ```
-git clone https://github.com/Ikram823/dental-assistant.git
+git clone https://github.com/IkramB23/dental-assistant.git
 cd dental-assistant
 npm install
 npm start
