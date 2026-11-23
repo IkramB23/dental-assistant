@@ -1,6 +1,6 @@
 // Calls Google Gemini (free tier) through its REST API. Used when GEMINI_API_KEY is set (online deployment).
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const MODELS = [process.env.GEMINI_MODEL, 'gemini-flash-latest', 'gemini-2.5-flash'].filter(Boolean);
+const MODELS = [process.env.GEMINI_MODEL, 'gemini-3.8-flash', 'gemini-flash-latest'].filter(Boolean);
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -26,7 +26,7 @@ async function askGeminiJSON({ systemPrompt, userPrompt, schema }) {
   const withSchema = {
     systemInstruction: { parts: [{ text: systemPrompt }] },
     contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-    generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseJsonSchema: schema },
+    generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseJsonSchema: schema, thinkingConfig: { thinkingLevel: 'low' } },
   };
   // Fallback if the model refuses the schema: put the schema in the prompt instead.
   const schemaInPrompt = {

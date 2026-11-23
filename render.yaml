@@ -11,3 +11,4 @@ services:
         value: "22"
       - key: GEMINI_API_KEY
         sync: false   # asked at deploy time, never stored in the repo
+    autoDeployTrigger: commit
