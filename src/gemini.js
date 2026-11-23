@@ -5,13 +5,21 @@ const MODELS = [process.env.GEMINI_MODEL, 'gemini-flash-latest', 'gemini-2.5-fla
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function call(model, body) {
-  const r = await fetch(`${BASE}/${model}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-    body: JSON.stringify(body),
-  });
-  const j = await r.json().catch(() => ({}));
-  return { status: r.status, j };
+  const t0 = Date.now();
+  try {
+    const r = await fetch(`${BASE}/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120000),
+    });
+    const j = await r.json().catch(() => ({}));
+    console.log(`[gemini] ${model} -> ${r.status} in ${Date.now() - t0} ms${r.status !== 200 ? ' ' + (j.error?.message || '').slice(0, 200) : ''}`);
+    return { status: r.status, j };
+  } catch (e) {
+    console.log(`[gemini] ${model} -> ${e.name} after ${Date.now() - t0} ms`);
+    return { status: 504, j: { error: { message: 'Gemini timeout (' + e.name + ')' } } };
+  }
 }
 
 async function askGeminiJSON({ systemPrompt, userPrompt, schema }) {
@@ -38,10 +46,11 @@ async function askGeminiJSON({ systemPrompt, userPrompt, schema }) {
           catch { lastError = 'Gemini returned invalid JSON'; break; }
         }
         lastError = `Gemini ${status}: ${j.error?.message || 'request failed'}`;
+        if (status === 504) break; // timed out: don't wait again on the same call
         if (status === 429 || status >= 500) { await sleep(2000 * (attempt + 1)); continue; } // quota / overloaded: retry
         break;
       }
-      if (/API key/i.test(lastError)) throw new Error(lastError);
+      if (/API key|credential|PERMISSION|unauthori[sz]ed/i.test(lastError)) throw new Error(lastError);
       if (/not found|not supported/i.test(lastError)) break; // try next model
     }
   }

@@ -83,4 +83,23 @@ app.get('/api/sample-notes', (req, res) => {
 
 app.get('/api/info', (req, res) => res.json({ ai: AI_NAME() }));
 
+// Diagnostics: tests the AI and the PDF engine separately (no secrets returned).
+app.get('/api/diag', async (req, res) => {
+  const out = {};
+  let t = Date.now();
+  try {
+    await generatePdf({ patient: { name: 'Diag' }, summary: '', stages: [], unmatched: [], questions: [], answered: [], total: 0 }, { version: 0, lang: 'en' }, path.join(OUT, 'diag.pdf'));
+    out.pdf = `OK in ${Date.now() - t} ms`;
+  } catch (e) { out.pdf = 'ERROR: ' + e.message; }
+  if (req.query.ai !== '0') {
+    t = Date.now();
+    try {
+      const { askGeminiJSON } = require('./src/gemini');
+      const r = await askGeminiJSON({ systemPrompt: 'Reply with JSON only.', userPrompt: 'Return {"ok": true}', schema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'] } });
+      out.ai = `OK in ${Date.now() - t} ms: ${JSON.stringify(r)}`;
+    } catch (e) { out.ai = 'ERROR: ' + e.message; }
+  }
+  res.json(out);
+});
+
 app.listen(PORT, () => console.log(`Dental assistant running on http://localhost:${PORT} (AI: ${AI_NAME()})`));
