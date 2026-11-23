@@ -72,9 +72,9 @@ async function askGeminiJSON({ systemPrompt, userPrompt, schema }) {
     if (Date.now() > deadline - 5000) break;
     await sleep(3000);
   }
-  throw new Error(busy
-    ? 'Google Gemini (free tier) is overloaded right now. Please try again in a minute.'
-    : lastError);
+  throw new Error(/quota/i.test(lastError)
+    ? 'Google Gemini free-tier quota reached for today. Please try again later.'
+    : busy ? 'Google Gemini (free tier) is overloaded right now. Please try again in a minute.' : lastError);
 }
 
 module.exports = { askGeminiJSON };
