@@ -13,13 +13,22 @@ const BROWSER_CANDIDATES = [
 ].filter(Boolean);
 
 let browserPromise;
+function launch() {
+  // Locally: installed Edge/Chrome. On the server: the Chrome downloaded by puppeteer.
+  const executablePath = BROWSER_CANDIDATES.find(p => fs.existsSync(p));
+  return puppeteer.launch({
+    executablePath, headless: true,
+    args: process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] : [],
+  });
+}
 function getBrowser() {
   if (!browserPromise) {
-    // Locally: installed Edge/Chrome. On the server: the Chrome downloaded by puppeteer at install time.
-    const executablePath = BROWSER_CANDIDATES.find(p => fs.existsSync(p));
-    browserPromise = puppeteer.launch({
-      executablePath, headless: true,
-      args: process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] : [],
+    browserPromise = launch().catch(e => {
+      if (!/Could not find Chrome/i.test(e.message)) throw e;
+      // Server lost the Chrome download (build cache): install it once, then retry.
+      console.log('[pdf] Chrome missing, installing…');
+      require('child_process').execSync('npx puppeteer browsers install chrome', { cwd: require('path').join(__dirname, '..'), stdio: 'inherit' });
+      return launch();
     });
     browserPromise.catch(() => { browserPromise = null; });
   }
