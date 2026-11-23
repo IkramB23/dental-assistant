@@ -1,0 +1,12 @@
+# Pings the Render free instance every 10 minutes so it never spins down
+# (calls /api/info, which does not use the Gemini quota).
+name: Keep Render awake
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -s -m 120 -o /dev/null -w "%{http_code}\n" https://dental-assistant-swov.onrender.com/api/info
